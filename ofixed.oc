@@ -1,0 +1,621 @@
+#include <obliv.oh>
+#include "ofixed.oh"
+#include "ofixed_constants.h"
+#include <math.h>
+
+#include <stdio.h>
+
+#define MAX(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a > _b ? _a : _b; })
+
+#define MIN(a,b) \
+   ({ __typeof__ (a) _a = (a); \
+       __typeof__ (b) _b = (b); \
+     _a < _b ? _a : _b; })
+
+size_t ceildiv(size_t dividend, size_t divisor) {
+	return (dividend + divisor - 1) / divisor;
+}
+
+#if !(BIT_WIDTH_32)
+void obig_max(obig *a) obliv {
+	for(size_t i = 0; i < a->digits; i++) {
+		if(i < a->digits - 1) {
+			a->data[i] = (uint8_t) 0xFF;
+		} else {
+			a->data[i] = (uint8_t) 0x7F; // msb zero 
+		}
+	}
+}
+#endif
+
+// checks if 'in' is greater than ofixed_max or less than -ofixed_max
+// and sets 'out' to the respecitve limit if that's the case, and to 'in' 
+// otherwise
+void ofixed_check_overflow(ofixed_t *out, ofixed_t in) obliv {
+#if BIT_WIDTH_32
+	obliv if(in > (obliv int64_t) INT32_MAX) {
+		*out = INT32_MAX;
+	} else obliv if(in < (obliv int64_t) INT32_MIN) {
+		*out = INT32_MIN;
+	} else {
+		*out = in;
+	}
+#else
+//	obig_copy(out, in); 
+//	return; // assume overflows don't happen
+	if(in.digits <= out->digits) {
+		obig_copy_signed(out, in); // definitely fits, just copy
+		return;
+	}
+	obig temp, max;
+	obig *tempptr = &temp;
+	~obliv() obig_init(&temp, in.digits);
+	~obliv() obig_init(&max, out->digits);
+	obig_max(&max);
+	obliv bool overflowed = false;
+	obliv if(!obig_ltz_signed(in)) {
+		// check overflows by checking if higher bytes are all zero
+		for(size_t i = out->digits; i < in.digits; i++) {
+			obliv if(in.data[i] != 0) {
+				overflowed = true;
+			}
+		}
+		obliv if(overflowed) {
+			obig_copy_signed(out, max);
+		}
+	} else {
+			// check overflows by checking if higher bytes are all 0xFF
+			for(size_t i = out->digits; i < in.digits; i++) {
+				obliv if(in.data[i] != (uint8_t) 0xFF) {
+					overflowed = true;
+				}
+			}
+		obliv if(overflowed) {
+			obig_neg_signed(out, max); // min = -max
+		}
+	}
+	obliv if(!overflowed) {
+		obig_copy_signed(out, in);
+	}
+	~obliv() obig_free(&temp);
+	~obliv() obig_free(&max);
+#endif
+}
+
+
+
+
+obliv int8_t ofixed_cmp(ofixed_t a, ofixed_t b) obliv {
+#if BIT_WIDTH_32
+	obliv int8_t result = 0;
+	obliv if(a < b) result = -1;
+	obliv if(a > b) result = 1;
+	return result;
+#else
+	return obig_cmp(a, b);
+#endif
+	
+}
+
+void ofixed_abs(ofixed_t *out, ofixed_t a) obliv {
+#if BIT_WIDTH_32
+	obliv if(a < 0) *out = 0-a; // unary minus not defined for "obliv" types?
+	else *out = a;
+#else
+	obig_abs(out, a);
+#endif
+}
+
+void ofixed_add(ofixed_t *out, ofixed_t a, ofixed_t b) obliv {
+#if BIT_WIDTH_32
+	*out = a + b;
+#else
+	obig temp;
+	~obliv() obig_init(&temp, (a.digits > b.digits ? a : b).digits + 1);
+	obig_add_signed(&temp, a, b);	
+	obig_copy(out, temp);
+	~obliv() obig_free(&temp);
+#endif
+}
+
+void ofixed_sub(ofixed_t *out, ofixed_t a, ofixed_t b) obliv {
+#if BIT_WIDTH_32
+	*out = a - b;
+#else
+	obig temp;
+	~obliv() obig_init(&temp, (a.digits > b.digits ? a : b).digits + 1);
+	obig_sub_signed(&temp, a, b);	
+	obig_copy(out, temp);
+	~obliv() obig_free(&temp);
+#endif
+}
+
+
+void ofixed_inner_product(ofixed_t *out, ofixed_t *a, ofixed_t *b, size_t p, size_t d) obliv {
+#if BIT_WIDTH_32
+	obliv int64_t temp;
+	for(size_t i = 0; i < d; i++) {
+		temp += (obliv int64_t) a[i] * (obliv int64_t) b[i];
+	}
+	*out = temp >> p;
+#else
+	obig temp1, temp2, temp3;
+	~obliv() obig_init(&temp1, a[0].digits + b[0].digits + d);
+	~obliv() obig_init(&temp2, a[0].digits + b[0].digits);
+	~obliv() obig_init(&temp3, a[0].digits + b[0].digits);
+	obig_zero(&temp1);
+	for(size_t i = 0; i < d; i++) {
+		obig_mul_signed(&temp2, a[i], b[i]);
+		ofixed_add(&temp1, temp1, temp2);
+	}
+	obig_shr_native_signed(&temp3, temp1, p);
+	obig_copy(out, temp3);
+	~obliv() obig_free(&temp1);
+	~obliv() obig_free(&temp2);
+	~obliv() obig_free(&temp3);
+#endif
+}
+
+void ofixed_mul(ofixed_t *out, ofixed_t a, ofixed_t b, size_t p) obliv {
+#if BIT_WIDTH_32
+	*out = ((obliv int64_t) a * (obliv int64_t) b) >> p;
+#else
+	obig temp, temp2;
+	~obliv() obig_init(&temp, a.digits + b.digits);
+	~obliv() obig_init(&temp2, a.digits + b.digits);
+	obig_mul_signed(&temp, a, b);
+	obig_shr_native_signed(&temp2, temp, p);
+	obig_copy(out, temp2);
+	~obliv() obig_free(&temp);
+	~obliv() obig_free(&temp2);
+#endif
+}
+
+obliv bool ofixed_div(ofixed_t *out, ofixed_t a, ofixed_t b, size_t p) obliv {
+#if BIT_WIDTH_32
+	*out = ((obliv int64_t) a << p) / (obliv int64_t) b;
+	return true;
+#else
+	obig temp, temp2, *tempptr = &temp, *temp2ptr = &temp2;
+	obliv bool result;
+	~obliv() obig_init(&temp, a.digits + ceildiv(p,8));
+	~obliv() obig_init(&temp2, a.digits + ceildiv(p,8));
+/*	obliv if(obig_eqz(b)) { // handle division by zero
+		obliv bool a_neg = obig_ltz_signed(a);
+		ofixed_max(out);
+		obliv if(a_neg) {
+			obig_neg(out, *out);
+		}
+	} else {*/
+		obig_shl_native_signed(tempptr, a, p);
+		result = obig_div_mod_signed(temp2ptr, NULL, temp, b);
+		obig_copy(out, temp2);
+/*	}*/
+	~obliv() obig_free(&temp);
+	~obliv() obig_free(&temp2);
+	return result;
+#endif
+}
+
+obliv bool ofixed_div_overflow(ofixed_t *out, ofixed_t a, ofixed_t b, size_t p) obliv {
+#if BIT_WIDTH_32
+	obliv int64_t temp = ((obliv int64_t) a << p) / (obliv int64_t) b;
+	ofixed_check_overflow(out, temp);
+	return true;
+#else
+	obig temp, temp2, *tempptr = &temp, *temp2ptr = &temp2;
+	obliv bool result;
+	~obliv() obig_init(&temp, a.digits + ceildiv(p,8));
+	~obliv() obig_init(&temp2, a.digits + ceildiv(p,8));
+/*	obliv if(obig_eqz(b)) { // handle division by zero
+		obliv bool a_neg = obig_ltz_signed(a);
+		ofixed_max(out);
+		obliv if(a_neg) {
+			obig_neg(out, *out);
+		}
+	} else {*/
+		obig_shl_native_signed(tempptr, a, p);
+		result = obig_div_mod_signed(temp2ptr, NULL, temp, b);
+		ofixed_check_overflow(out, temp2);
+/*	}*/
+	~obliv() obig_free(&temp);
+	~obliv() obig_free(&temp2);
+	return result;
+#endif
+}
+
+#if BIT_WIDTH_32
+// returns a mask of the lowest (FIXED_BIT_SIZE + p) bits.
+// saves garbled gates for some operations
+static int64_t fixed_mask(int p) {
+	return ((1ll << (FIXED_BIT_SIZE + p)) - 1);
+}
+#endif
+
+void ofixed_sqrt(ofixed_t *out, ofixed_t a, size_t p) obliv {
+#if BIT_WIDTH_32
+	// limit number of bits
+	int64_t mask;
+	~obliv() mask = fixed_mask(p);
+	obliv int64_t x = ((obliv int64_t) a << p) & mask;
+	obliv int64_t r = 0;
+	for(int64_t e = mask + 1; e != 0; e >>= 2) {
+		obliv if((x & mask) >= ((r + e) & mask)) {
+			x -= r + e;
+			r = ((r >> 1) + e) & mask;
+		} else {
+			r = r >> 1;
+		}
+	}
+	*out = r;
+#else
+	obig temp;
+	~obliv() obig_init(&temp, a.digits + ceildiv(p,8));
+	obig_shl_native_signed(&temp, a, p);
+	obig_sqrt(out, temp);
+	~obliv() obig_free(&temp);
+#endif
+}
+
+void ofixed_ln12(obig * r, obig x) obliv {
+	/* This function computes the natural logarithm of inputs in the range [1,2), using the Feynman Logarithm
+	function, as specified below.
+	*/
+	obig a, b, temp;
+	obig * aref = &a; // workaround for oblivc bug
+	obig * tempref = &temp;
+	~obliv() obig_init(&a, x.digits + 1);
+	~obliv() obig_init(&b, x.digits + 1); // An extra digit is necessary to prevent b = a * (1+2^-k) from overflowing
+	~obliv() obig_init(&temp, r->digits);
+	obig_zero(r);
+	a.data[a.digits-2]=0x80;
+
+	for (size_t ii = 1; ii < x.digits * 8; ii++) {
+		obig_copy(&b, a);
+		obig_shr_native(&b, b, ii);
+		obig_add(&b, b, a);
+
+		obliv if(obig_lte(b, x)) {
+			obig_copy(aref, b);
+			obig_import_pointed(tempref, ofixed_ln_log_components + ((ii+1) * OFIXED_LN_OUTPUT_PRECISION/8) - temp.digits, temp.digits);
+			obig_add(r, *r, temp);
+		}
+	}
+	~obliv() obig_free(&a);
+	~obliv() obig_free(&b);
+	~obliv() obig_free(&temp);
+}
+
+
+bool ofixed_ln(ofixed_t *out, size_t * outp, ofixed_t a, size_t p) obliv {
+	/* This function implements the Feynman Logarithm algorithm, as described in
+	http://longnow.org/essays/richard-feynman-connection-machine/
+
+	In short, it uses a lookup table (found in ofixed_constants.oh and generated
+	by gen_constants.py) to compute ln(x) in O(n^2). As a consequence of this approach,
+	it can only handle inputs with lengths less than the values in the lookup table
+	(by default 256 bits).
+
+	ofixed_ln() is primarily responsible for normalizing its input values into the
+	range [1,2); it calls ofixed_ln12() to find logarithms within this range.
+
+	We take parameters:
+	a - the input value
+	p (input precision) - the number of bits devoted to the fractional part of the input value
+	*out () - pointer to an obig into which the output value can be written
+	*outp (output precision) - the number of bits devoted to the fractional part of the output
+		value. This is set automatically to achieve the best possible precision
+
+	In addition, the function outputs a bool indicating whether the input value was out of range.
+	*/
+
+#if BIT_WIDTH_32
+	//nothing
+#else
+	if (a.digits * 8 > OFIXED_LN_INPUT_PRECISION) return false;
+
+	obliv uint32_t normalize, denormalize;
+	obig denormalizer;
+	obig * denormalizerref = &denormalizer; //oblivc bug workaround
+	obig tempin;
+	~obliv() obig_init(&tempin, a.digits);
+	~obliv() obig_init(&denormalizer, out->digits + 1);
+
+	size_t intp_in = a.digits*8 - p;
+	size_t fracp_in = p;
+	size_t intp_out;
+	~obliv() intp_out = ceil(MAX(log2(a.digits*8 - p),log2(p))) + 1;
+	size_t fracp_out = out->digits*8 - intp_out;
+	*outp = fracp_out;
+
+	for (int64_t ii = 0; ii < a.digits*8; ii++) {
+		obliv if (obig_bit_get(a,ii) == 1) {
+			normalize = ii;
+		}
+	}
+
+	for (size_t ii = 0; ii < p; ii++) {
+		obliv if (obig_bit_get(a, ii) == 1) {
+			size_t row_end = ofixed_ln_normalize_factors + (p-ii)*(OFIXED_LN_OUTPUT_PRECISION+OFIXED_LN_NORMALIZE_INT_BITS)/8;
+			obig_import_pointed(denormalizerref, row_end - (fracp_out/8 + OFIXED_LN_NORMALIZE_INT_BITS/8 + 1), (fracp_out/8 + OFIXED_LN_NORMALIZE_INT_BITS/8 + 1));
+		}
+	}
+
+	for (size_t ii = 0; ii < a.digits*8 - p -1; ii++) {
+		obliv if (obig_bit_get(a,ii + p + 1) == 1) {
+			size_t row_end = ofixed_ln_normalize_factors + (ii+1)*(OFIXED_LN_OUTPUT_PRECISION+OFIXED_LN_NORMALIZE_INT_BITS)/8;
+			obig_import_pointed(denormalizerref, row_end - (fracp_out/8 + OFIXED_LN_NORMALIZE_INT_BITS/8 + 1), (fracp_out/8 + OFIXED_LN_NORMALIZE_INT_BITS/8 + 1));
+		}
+	}
+
+	obig_shr_native(&denormalizer, denormalizer, 7-fracp_out%8);
+
+	denormalize = intp_out;
+
+	obig_shl_onative(&tempin, a, a.digits * 8 - normalize - 1);
+	
+	ofixed_ln12(out, tempin);
+
+	obig_shr_onative(out, *out, denormalize);
+
+	obliv if (normalize > p) obig_add(out, *out, denormalizer);
+	obliv if (normalize < p) obig_sub(out, *out, denormalizer);
+
+	~obliv() obig_free(&denormalizer);
+	~obliv() obig_free(&tempin);
+
+	return true;
+#endif
+}
+
+
+void ofixed_exp12(obig * r, obig x) obliv {
+	/* This computes e^x for values within the range [0,ln(2)), using the Inverse Feynman Logarithm,
+	as specified below.
+	*/
+
+	obig a, b, c;
+	obig * aref = &a; // workaround for oblivc bug
+	obig * cref = &c;
+	~obliv() obig_init(&a, x.digits);
+	~obliv() obig_init(&b, x.digits);
+	~obliv() obig_init(&c, r->digits);
+	obig_zero(r);
+	r->data[r->digits-1]=0x01; // one extra digit is necessary, as in ofixed_ln12()
+
+	for (size_t ii = 0; ii < x.digits * 8; ii++) {
+		obig_import_pointed(&b, ofixed_ln_log_components + ((ii+1) * OFIXED_LN_OUTPUT_PRECISION/8) - b.digits, b.digits);
+		obig_add(&b, b, a);
+
+		obliv if(obig_lte(b, x)) {
+			obig_shr_native(cref, *r, ii);
+			obig_add(r, *r, c);
+			obig_copy(aref, b);
+		}
+	}
+	~obliv() obig_free(&a);
+	~obliv() obig_free(&b);
+	~obliv() obig_free(&c);
+}
+
+obliv bool ofixed_exp_ranged(ofixed_t *out, size_t fracp_out, ofixed_t a, size_t p) obliv {
+	/* This algorithm implements what I will call the Inverse Feynman Logarithm. In short, it does
+	exactly the opposite of the natural log function, above. Thus, it uses a lookup table to compute
+	e^x in O(n^2).
+
+	Note: a consequence of this method is that the algorithm fails for any value outside the range
+	represented in the lookup table. By default this is -256 to +256 (which seems sensible).
+
+	ofixed_exp is responsible primarily for normalization into the range [0,ln(2)); it calls
+	ofixed_exp12() to find e^x for values within that range.
+
+	We take parameters:
+	a (exponent) - the input exponent
+	p (input precision) - the number of bits devoted to the fractional part of the input value
+	*out () - pointer to an obig into which the output value can be written
+	*outp (output precision) - the number of bits devoted to the fractional part of the output
+		value. This is set automatically to avoid overflow if at all possible. If more fractional
+		bits are required, use a longer output obig
+
+	In addition, the function outputs an obliv bool indicating whether overflow has happened (as
+	noted above). This flag does not signal underflow, however.
+	*/
+
+#if BIT_WIDTH_32
+	//nothing
+#else
+	size_t fracp_in = p;
+	size_t intp_in = a.digits * 8 - p;
+	size_t fracp_working = fracp_in + (8-(fracp_in%8));
+	size_t intp_working = MAX(intp_in,OFIXED_LN_NORMALIZE_INT_BITS) + (8-(MAX(intp_in,OFIXED_LN_NORMALIZE_INT_BITS)%8))%8;
+	size_t intp_normalizer = OFIXED_LN_NORMALIZE_INT_BITS + (8-(OFIXED_LN_NORMALIZE_INT_BITS%8))%8;
+
+	size_t fracp_r = out->digits*8;
+	
+
+	obig normalizer, temp, temp2, ln2, a2, a3, r;
+	obig * normalizerref = &normalizer;
+	obig * a2ref = &a2;
+	obig * temp2ref = &temp2;
+
+	~obliv() obig_init(&normalizer, (intp_normalizer + fracp_working)/8);
+	~obliv() obig_init(&temp, (intp_normalizer + fracp_working)/8);
+	~obliv() obig_init(&temp2, (intp_normalizer + fracp_working)/8);
+	~obliv() obig_init(&ln2, (intp_normalizer + fracp_working)/8);
+	~obliv() obig_init(&a2, (intp_working + fracp_working)/8);
+	~obliv() obig_init(&r, (fracp_r)/8 + 1);
+
+	obliv bool invert = false;
+	obliv bool found = false;
+	obliv uint32_t normalize;
+	obliv int32_t denormalize;
+
+	obig_shl_native_signed(&a2, a, fracp_working - fracp_in -1);
+
+	obliv if (obig_ltz_signed(a2)) {
+		obig_neg_signed(a2ref, a2);
+		invert = true;
+	}
+
+	obig_import_pointed(&ln2, ofixed_ln_normalize_factors+(OFIXED_LN_OUTPUT_PRECISION+OFIXED_LN_NORMALIZE_INT_BITS)/8 - (intp_normalizer + fracp_working)/8, (intp_normalizer + fracp_working)/8);
+	obig_shr_native(&ln2, ln2, intp_normalizer - OFIXED_LN_NORMALIZE_INT_BITS);
+
+	for (size_t ii = 0; ii < a.digits*8; ii++) {
+		size_t row_end = ofixed_ln_normalize_factors + (ii+1)*(OFIXED_LN_OUTPUT_PRECISION+OFIXED_LN_NORMALIZE_INT_BITS)/8;
+		obig_import_pointed(&temp, row_end - (intp_normalizer + fracp_working)/8, (intp_normalizer + fracp_working)/8);
+		obig_shr_native(&temp, temp, intp_normalizer - OFIXED_LN_NORMALIZE_INT_BITS);
+		
+		obig_sub_signed(&temp2, a2, temp);
+		obliv if (invert) obig_neg_signed(temp2ref, temp2);
+
+		obliv if (obig_lte(temp2, ln2) & ~invert & ~found) {
+			found = true;
+			denormalize = -(ii+1);
+			obig_copy(normalizerref, temp);
+		} else obliv if (obig_lte_signed(temp2, ln2) & invert) {
+			found = true;
+			denormalize = ii+1;
+			obig_copy(normalizerref, temp);
+		}
+	}
+
+	obig_shl_native_signed(&normalizer, normalizer, 1);
+	obig_shl_native_signed(&a2, a, fracp_working - fracp_in);
+
+	obliv if (invert) {
+		obig_add_signed(a2ref, a2, normalizer);
+	} else {
+		obig_sub_signed(a2ref, a2, normalizer);
+	}
+
+	// We know that 0 < a2 < 1, so we can omit the integer part.
+	// This hack avoids allocating, copying, or shifting
+	a2.digits -= intp_working/8;
+	ofixed_exp12(&r,a2);
+
+	obliv int32_t shiftamt = fracp_r - fracp_out + denormalize;
+	obliv if (shiftamt >= 0) {
+		obig_shr_onative(out, r, shiftamt);
+	} else {
+		obig_shl_onative(out, r, -shiftamt);
+	}
+
+	~obliv() obig_free(&a2);
+	~obliv() obig_free(&r);
+	~obliv() obig_free(&normalizer);
+	~obliv() obig_free(&temp);
+	~obliv() obig_free(&temp2);
+	~obliv() obig_free(&ln2);
+
+	return found;
+#endif
+}
+
+obliv bool ofixed_exp(ofixed_t *out, size_t * outp, ofixed_t a, size_t p) obliv {
+	size_t intp_in = a.digits * 8 - p;
+	size_t intp_out;
+	~obliv() intp_out = MIN(1ll << intp_in + 1, out->digits*8);
+	*outp = out->digits*8 - intp_out;
+
+	return ofixed_exp_ranged(out, out->digits*8 - intp_out, a, p);
+}
+
+obliv bool ofixed_sigmoid(obig * r, size_t * rp, obig x, size_t xp) obliv {
+	obliv bool success;
+
+	obig numerator;
+	obig denominator;
+	obig temp;
+	obig * tempref = &temp;
+	obig * numref = &numerator;
+	obig * denref = &denominator;
+	~obliv() obig_init(&numerator, x.digits); 
+	~obliv() obig_init(&denominator, x.digits); 
+	~obliv() obig_init(&temp, x.digits); 
+
+	size_t denominatorp = x.digits * 8 - 3;
+
+	obliv if (obig_ltz_signed(x)) {
+		obig_copy_signed(tempref, x);
+	} else {
+		obig_neg_signed(tempref, x);
+	}
+
+	success = ofixed_exp_ranged(&denominator, denominatorp, temp, xp);
+
+	obig_one(&temp);
+	obig_shl_native(&temp, temp, denominatorp);
+
+	obliv if (obig_ltz_signed(x)) {
+		obig_copy(numref, denominator);
+	} else {
+		obig_copy(numref, temp);
+	}
+
+	obig_add_signed(denref, denominator, temp);
+
+	success &= ofixed_div(&temp, numerator, denominator, denominatorp);
+
+	size_t resultp = r->digits * 8 -3;
+	if (denominatorp > resultp) {
+		obig_shr_native_signed(r, temp, denominatorp - resultp);
+		*rp = resultp;
+	} else {
+		obig_copy_signed(r, temp);
+		*rp = denominatorp;
+	}
+
+	~obliv() obig_free(&numerator);
+	~obliv() obig_free(&denominator);
+	~obliv() obig_free(&temp);
+
+	return success;
+}
+
+
+
+
+
+
+void ofixed_init(ofixed_t *a) {
+#if BIT_WIDTH_32
+	return;
+#else
+	obig_init(a, FIXED_BIT_SIZE / 8);
+#endif
+}
+
+void ofixed_free(ofixed_t *a) {
+#if BIT_WIDTH_32
+	return;
+#else
+	obig_free(a);
+#endif
+}
+
+void ofixed_import(ofixed_t *a, obliv fixed_t b) {
+#if BIT_WIDTH_32
+	*a = b;
+#else
+	obig_import_onative_signed(a, b);
+#endif
+}
+
+obliv fixed_t ofixed_export(ofixed_t a) {
+#if BIT_WIDTH_32
+	return a;
+#else
+	return obig_export_onative_signed(a);
+#endif
+}
+
+void ofixed_copy(ofixed_t *a, ofixed_t b) obliv {
+#if BIT_WIDTH_32
+	*a = b;
+#else
+	obig_copy_signed(a, b);
+#endif
+}
