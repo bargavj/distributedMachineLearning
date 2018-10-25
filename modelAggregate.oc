@@ -5,7 +5,7 @@ void aggregate(void* args)
   protocolIO *io = args;
   obliv int64_t beta_avg[D], random_vals[D], n_min, sizes[M], b, sign, res, res2;
   obig randval, logval, randval2, logval2;
-  int64_t prec, prec2, val;
+  int64_t prec, prec2, val, gates;
   
   obig_init(&randval, MAXN);
   obig_init(&logval, MAXN);
@@ -49,10 +49,12 @@ void aggregate(void* args)
     }
 
     obig_import_onative(&randval, random_vals[j]);
+    gates = yaoGateCount();
     ofixed_ln(&logval, &prec, randval, 0);    
+    gates = yaoGateCount() - gates;
     res = obig_export_onative_signed(logval);
     res /= (1LL << prec);    
-        
+    fprintf(stderr, "Log gate count: %llu\n", gates);
     beta_avg[j] += (res - res2) * b * sign;
   }
 

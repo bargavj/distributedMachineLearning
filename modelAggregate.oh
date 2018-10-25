@@ -8,7 +8,7 @@
 #include "util.h"
 
 #define MAXN 16
-#define D 95 // 122 KDD99, 104 Adult, 95 KDD98
+#define D 104 // 122 KDD99, 104 Adult, 95 KDD98
 #define M 100
 #define SCALE 1000000000
 

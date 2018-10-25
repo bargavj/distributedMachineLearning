@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
   fclose(fptr3);
   
   for(i = 0; i < M; i++) {
-    io.sizes[i] = 500;
+    io.sizes[i] = 300;
   }
   
   io.epsilon = 0.5;
