@@ -3,4 +3,4 @@ This work combines differential privacy and multi-party computation protocol to 
 
 The code contains privacy preserving implementation of L2 Regularized Logistic Regression and Linear Regression models.
 
-Run `python model_wrapper.py'
+Run `python model_wrapper.py`
