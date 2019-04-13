@@ -225,6 +225,7 @@ def centralized_objective_pert(X, y, lambda2, T, m, epsilon):
     b = np.random.normal(0, 2. * np.sqrt(2 * np.log(1.25 / delta)) / epsilon2, d)
    
     for t in range(T):
+        grad = np.zeros(d)
         for j in range(m):
             grad += gradient(beta, X[j * chunk : (j + 1) * chunk], y[j * chunk : (j + 1) * chunk], lambda2)
         beta -= eta * ( grad / m + Delta * beta / (m * chunk) + b / (m * chunk) + np.random.laplace(0, 2. / (m * chunk * epsilon), d) )
