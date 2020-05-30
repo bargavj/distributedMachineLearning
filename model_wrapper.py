@@ -212,7 +212,7 @@ def proposed_output_pert(X, y, lambda2, T, m, epsilon):
     for t in range(T):
         for j in range(m):
             local_betas[j] -= eta * gradient(local_betas[j], X[j * chunk : (j + 1) * chunk], y[j * chunk : (j + 1) * chunk], lambda2)
-        #beta = np.sum(local_betas, axis=0) / m + np.random.laplace(0, 2. / (m * chunk * lambda2 * epsilon), d)
+        # Note: set useMPC=True to run the secure MPC code
         beta = secure_aggregate_laplace(local_betas, 2. / (m * chunk * lambda2 * epsilon), useMPC=False)
         loss.append(optimality_gap(beta, X, y, lambda2, T, m, epsilon))
         #acc.append(testModel(xtest, ytest, beta))
@@ -229,6 +229,7 @@ def proposed_gradient_pert(X, y, lambda2, T, m, epsilon):
     
     for t in range(T):
         grads = [gradient(beta, X[j * chunk : (j + 1) * chunk], y[j * chunk : (j + 1) * chunk], lambda2) for j in range(m)]
+        # Note: set useMPC=True to run the secure MPC code
         grad = secure_aggregate_gaussian(np.array(grads), np.sqrt(2. * T) / (m * chunk * (np.sqrt(np.log(1. / delta) + epsilon) - np.sqrt(np.log(1. / delta)))), useMPC=False)
         beta -= eta * grad
         loss.append(optimality_gap(beta, X, y, lambda2, T, m, epsilon))
