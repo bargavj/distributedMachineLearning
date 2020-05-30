@@ -7,7 +7,7 @@ The code contains privacy preserving implementation of L2 Regularized Logistic R
 
 * Python 2.7 or above
 * [Numpy](https://numpy.org)
-* [Scikit Learn[](https://scikit-learn.org/stable/)
+* [Scikit Learn](https://scikit-learn.org/stable/)
 * [Obliv-C](https://github.com/samee/obliv-c)
 * [Absentminded Crypto Toolkit](https://bitbucket.org/jackdoerner/absentminded-crypto-kit/src/master/)
 
