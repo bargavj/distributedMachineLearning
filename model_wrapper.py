@@ -327,12 +327,3 @@ t0 = time.time()
 trainAggregateModel(X[:50000], y[:50000], X[50000:], y[50000:], modelName, M)
 t1 = time.time()
 print('Runtime : ' + str(t1-t0))
-
-'''
-fp = open('Output/beta_avg.txt', 'r')
-for line in fp:
-    beta = [float(val) for val in line.split(' ')[:-1]]
-fp.close()
-print(beta, len(beta))
-print(testModel(X[50000:], y[50000:], beta))
-'''
