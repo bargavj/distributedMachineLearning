@@ -306,10 +306,9 @@ def trainAggregateModel(xtrain, ytrain, xtest, ytest, modelName, m):
             
 ####################
 
-#X, y = pickle.load(open('adult_data.p', 'rb'))
-#X, y = pickle.load(open('kddcup98_data_70k.p', 'rb'))
-X, y = pickle.load(open('kddcup99_data_70k.p', 'rb'))
-#xtest, ytest = pickle.load(open('kddcup99_data_train.p', 'rb'))
+#X, y = pickle.load(open('Dataset/adult_data.p', 'rb'))
+#X, y = pickle.load(open('Dataset/kddcup98_data_70k.p', 'rb'))
+X, y = pickle.load(open('Dataset/kddcup99_data_70k.p', 'rb'))
 
 X, y = shuffle(X, y, random_state = 0)
 print(X.shape, y.shape)

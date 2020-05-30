@@ -1,0 +1,115 @@
+#include "modelAggregate.oh"
+
+void aggregate(void* args)
+{
+  protocolIO *io = args;
+  obliv bool correct;
+  obliv int64_t *beta_avg, noise_scale, u1, u2, v2, noise, log_u1, log_max, max, factor;
+  obig log_max_big, log_u1_big, max_big, u1_big, u2_big, v2_big, noise_big, noise_sq_big, tmp, factor_big;
+  int64_t prec;
+  int M, D;
+
+  obig_init(&log_u1_big, MAXN);
+  obig_init(&log_max_big, MAXN);
+  obig_init(&max_big, MAXN);
+  obig_init(&u1_big, MAXN);
+  obig_init(&u2_big, 2*MAXN);
+  obig_init(&v2_big, MAXN);
+  obig_init(&factor_big, MAXN);
+  obig_init(&noise_big, MAXN);
+  obig_init(&tmp, MAXN);
+  obig_init(&noise_sq_big, 2*MAXN);
+  
+  correct = 1;
+  factor =  85776388;
+  max = SCALE;
+
+  obig *log_u1_big_ref = &log_u1_big;
+  obig *u2_big_ref = &u2_big;
+  obig *v2_big_ref = &v2_big;
+  obig *noise_big_ref = &noise_big;
+  obig *tmp_ref = &tmp;
+  
+  M = io->M;
+  D = io->D;
+  beta_avg = (obliv int64_t *)malloc(D * sizeof(obliv int64_t));
+  
+  noise_scale = (feedOblivLLong(io->noise1, 1) ^ feedOblivLLong(io->noise2, 2));
+
+  for(int j = 0; j < D; j++)
+  {
+    beta_avg[j] = 0;
+    u1 = (feedOblivLLong(io->random11[j], 1) ^ feedOblivLLong(io->random12[j], 2));
+    v2 = (feedOblivLLong(io->random21[j], 1) ^ feedOblivLLong(io->random22[j], 2));
+    for(int i = 0; i < M; i++) {
+      beta_avg[j] += (feedOblivLLong(io->beta1[i][j], 1) ^ feedOblivLLong(io->beta2[i][j], 2));
+    }
+    beta_avg[j] /= M;
+
+    //u2 = (2 * v2 - SCALE) * factor / SCALE;
+    //u2 = 2 * v2 - SCALE;
+
+    obig_import_onative(&u1_big, u1);
+    obig_import_onative(&v2_big, v2);
+    obig_import_onative(&factor_big, factor);
+    obig_import_onative(&max_big, max);
+
+    obig_add_signed(v2_big_ref, v2_big, v2_big);
+    obig_sub_signed(v2_big_ref, v2_big, max_big);
+
+    obig_mul_signed(u2_big_ref, v2_big, factor_big);
+
+    //noise = u2 / u1;
+    obig_div_mod_signed(&noise_big, &tmp, u2_big, u1_big);
+
+    noise = obig_export_onative_signed(noise_big);
+
+    obig_div_mod_signed(noise_big_ref, tmp_ref, noise_big, max_big);
+    
+    obig_mul_signed(&noise_sq_big, noise_big, noise_big);
+
+    ofixed_ln(&log_u1_big, &prec, u1_big, 0);
+    log_u1 = obig_export_onative_signed(log_u1_big);
+    log_u1 /= (1LL << prec);
+
+    
+    ofixed_ln(&log_max_big, &prec, max_big, 0);
+    log_max = obig_export_onative_signed(log_max_big);
+    log_max /= (1LL << prec);
+
+    log_u1 = 4 * (log_max - log_u1);
+    obig_import_onative(log_u1_big_ref, log_u1);
+
+    //if(u2 * u2 > -4 * u1 * u1 * log_u1)
+    obliv if(obig_cmp(noise_sq_big, log_u1_big) > 0) {
+      correct = 0;
+    }
+
+    obig_import_onative(noise_big_ref, noise);
+
+    obig_import_onative(u2_big_ref, noise_scale);
+    obig_mul_signed(u2_big_ref, noise_big, u2_big);
+    obig_div_mod_signed(noise_big_ref, tmp_ref, u2_big, max_big);
+    noise = obig_export_onative_signed(noise_big);
+
+    beta_avg[j] += noise;
+  }
+  printGateCount();
+  
+  revealOblivBool(&io->correct, correct, 0);
+  for(int j = 0; j < D; j++) {
+    revealOblivLLong(&io->beta_avg[j], beta_avg[j], 1);
+  }
+
+  obig_free(&u1_big);
+  obig_free(&u2_big);
+  obig_free(&v2_big);
+  obig_free(&max_big);
+  obig_free(&noise_big);
+  obig_free(&noise_sq_big);
+  obig_free(&tmp);
+  obig_free(&log_max_big);
+  obig_free(&log_u1_big);
+
+  free(beta_avg);
+}

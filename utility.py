@@ -29,7 +29,7 @@ def secure_aggregate_laplace(vectors, noise_scale, useMPC=False):
 	port = 1234
 
   	# Note: Currently, M, D, lambda, epsilon and chunk size for each party are all hard coded in modelAggregate.c and modelAggregate.oh files.
-	os.system("./cycle './a.out "+str(port)+" -- dualex | ./a.out "+str(port)+" localhost dualex'")
+	os.system("./cycle 'model_aggregate_laplace/a.out "+str(port)+" -- dualex | model_aggregate_laplace/a.out "+str(port)+" localhost dualex'")
 	
 	fp = open('Output/beta_avg.txt', 'r')
 	beta = []
@@ -99,7 +99,7 @@ def secure_aggregate_gaussian(vectors, noise_scale, useMPC=False):
 		fp3.close()
 		fp4.close()
 
-		ret = os.system("./cycle './a.out "+str(port)+" -- dualex "+str(vectors.shape[0])+" "+str(vectors.shape[1])+" | ./a.out "+str(port)+" localhost dualex "+str(vectors.shape[0])+" "+str(vectors.shape[1])+"'")
+		ret = os.system("./cycle 'model_aggregate_gaussian/a.out "+str(port)+" -- dualex "+str(vectors.shape[0])+" "+str(vectors.shape[1])+" | model_aggregate_gaussian/a.out "+str(port)+" localhost dualex "+str(vectors.shape[0])+" "+str(vectors.shape[1])+"'")
 		
 	fp = open('Output/beta_avg.txt', 'r')
 	beta = []

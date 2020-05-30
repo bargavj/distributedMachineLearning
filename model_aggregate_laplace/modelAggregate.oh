@@ -1,0 +1,30 @@
+#ifndef MODEL_AGGREGATE_OH
+#define MODEL_AGGREGATE_OH
+
+#include <obliv.oh>
+#include <obig.oh>
+#include <stdio.h>
+#include "ofixed.oh"
+#include "util.h"
+
+#define MAXN 16
+#define D 104 // 122 KDD99, 104 Adult, 95 KDD98
+#define M 100
+#define SCALE 1000000000
+
+#define printGateCount() fprintf(stderr, "Yao gate count: %llu\n", yaoGateCount())
+
+typedef struct protocolIO{
+  int64_t beta1[M][D];       // Model Parameters Share of Party 1
+  int64_t beta2[M][D];       // Model Parameters Share of Party 2
+  int64_t beta_avg[D];       // Aggregate Model Parameters
+  int64_t random_vals[M][D];  // Random values for Laplace Noise Generation
+  int sizes[M];                // Dataset Sizes
+  int lambda;                 // Regularization Parameter
+  int epsilon;                // Privacy Budget
+  int proto;                  // CommandLine Argument: 1 -> Yao and 2 -> DualEx
+}protocolIO;
+
+void aggregate(void* args);
+
+#endif
