@@ -10,6 +10,10 @@ The code contains privacy preserving implementation of L2 Regularized Logistic R
 * [Scikit Learn](https://scikit-learn.org/stable/)
 * [Obliv-C](https://github.com/samee/obliv-c)
 * [Absentminded Crypto Toolkit](https://bitbucket.org/jackdoerner/absentminded-crypto-kit/src/master/)
+* [Cycle Utility](https://github.com/samee/cmd)
 
 ### Code Execution
+
+Execute make files in `model_aggregate_gaussian` and `model_aggregate_laplace` directories using `make` command to obtain the respective `a.out` executable files.
+
 Run `python model_wrapper.py`
