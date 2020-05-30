@@ -303,7 +303,6 @@ def trainAggregateModel(xtrain, ytrain, xtest, ytest, modelName, m):
         fp1 = open('Inputs/beta1.txt', 'a')
         fp2 = open('Inputs/beta2.txt', 'a')
         fp3 = open('Inputs/random_vals.txt', 'a')
-        fp4 = open('Inputs/intercepts.txt', 'a')
         '''
         '''
                     beta1 = np.array([int(SCALE*val) for val in a])
@@ -317,7 +316,6 @@ def trainAggregateModel(xtrain, ytrain, xtest, ytest, modelName, m):
         fp1.close()
         fp2.close()
         fp3.close()
-        fp4.close()
         '''
             
 ####################
@@ -345,16 +343,10 @@ t1 = time.time()
 print('Runtime : ' + str(t1-t0))
 
 '''
-fp1 = open('Output/beta_avg.txt', 'r')
-fp2 = open('Inputs/intercepts.txt', 'r')
-
-for line in fp1:
+fp = open('Output/beta_avg.txt', 'r')
+for line in fp:
     beta = [float(val) for val in line.split(' ')[:-1]]
-for line in fp2:
-    intercept = float(line.split()[1][:-1])
-fp1.close()
-fp2.close()
-
-print(beta, len(beta), intercept)
-print(testModel(X[50000:], y[50000:], beta, intercept))
+fp.close()
+print(beta, len(beta))
+print(testModel(X[50000:], y[50000:], beta))
 '''
