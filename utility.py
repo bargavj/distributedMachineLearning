@@ -9,23 +9,19 @@ def secure_aggregate_laplace(vectors, noise_scale, useMPC=False):
 
 	vectors = (vectors*SCALE).astype(int)
 	vectors_mask = np.random.randint(-SCALE, SCALE, vectors.shape)
-	noise = (noise*SCALE).astype(int)
-	noise_mask = np.random.randint(-SCALE, SCALE, noise.shape)
+	random_vals = np.random.randint(-SCALE, SCALE, vectors.shape)
 	fp1 = open('Inputs/beta1.txt', 'w')
 	fp2 = open('Inputs/beta2.txt', 'w')
-	fp3 = open('Inputs/noise1.txt', 'w')
-	fp4 = open('Inputs/noise2.txt', 'w')
+	fp3 = open('Inputs/random_vals.txt', 'w')
 	for i in range(vectors.shape[0]):
 		for j in range(vectors.shape[1]):
 			fp1.write(str(vectors[i,j]^vectors_mask[i,j])+ ' ')
 			fp2.write(str(vectors_mask[i,j])+ ' ')
-		fp3.write(str(noise[i]^noise_mask[i])+ ' ')
-		fp4.write(str(noise_mask[i])+ ' ')
+			fp3.write(str(random_vals[i,j])+ ' ')
 	fp1.close()
 	fp2.close()
 	fp3.close()
-	fp4.close()
-
+	
 	port = 1234
 
   	# Note: Currently, M, D, lambda, epsilon and chunk size for each party are all hard coded in modelAggregate.c and modelAggregate.oh files.
