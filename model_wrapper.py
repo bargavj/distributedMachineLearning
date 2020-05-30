@@ -2,9 +2,10 @@ import time
 import pickle
 import numpy as np
 from sklearn import metrics
-from sklearn.model_selection import cross_val_score
-from sklearn.model_selection import KFold
+from sklearn.model_selection import cross_val_score, KFold
+from sklearn.model_selection import 
 from sklearn.utils import shuffle
+from utility import secure_aggregate_laplace, secure_aggregate_gaussian
 import matplotlib.pyplot as plt
 
 ####################
@@ -141,22 +142,6 @@ def distributed_output_pert(X, y, lambda2, T, m, epsilon):
     plt.plot(loss)
     plt.show()
     return beta
-
-
-def proposed_output_pert(X, y, lambda2, T, m, epsilon):
-    n, d = X.shape[0], X.shape[1]
-    local_betas = np.zeros((m, d))
-    acc, loss = [], []
-    
-    for t in range(T):
-        for j in range(m):
-            local_betas[j] -= eta * gradient(local_betas[j], X[j * chunk : (j + 1) * chunk], y[j * chunk : (j + 1) * chunk], lambda2)
-        beta = np.sum(local_betas, axis=0) / m + np.random.laplace(0, 2. / (m * chunk * lambda2 * epsilon), d)
-        loss.append(optimality_gap(beta, X, y, lambda2, T, m, epsilon))
-        #acc.append(testModel(xtest, ytest, beta))
-    plt.plot(loss)
-    plt.show()
-    return beta
     
 
 def centralized_gradient_pert(X, y, lambda2, T, m, epsilon):
@@ -191,23 +176,6 @@ def local_gradient_pert(X, y, lambda2, T, m, epsilon):
     return beta
 
 
-def proposed_gradient_pert(X, y, lambda2, T, m, epsilon):
-    n, d = X.shape[0], X.shape[1]
-    beta = np.zeros(d)
-    acc, loss = [], []
-    
-    for t in range(T):
-        grad = np.zeros(d)
-        for j in range(m):
-            grad += gradient(beta, X[j * chunk : (j + 1) * chunk], y[j * chunk : (j + 1) * chunk], lambda2)
-        beta -= eta * ( grad / m + np.random.normal(0, np.sqrt(2. * T) / (m * chunk * ( np.sqrt(np.log(1. / delta) + epsilon) - np.sqrt(np.log(1. / delta)) ) ), d) )
-        loss.append(optimality_gap(beta, X, y, lambda2, T, m, epsilon))
-        #acc.append(testModel(xtest, ytest, beta))
-    plt.plot(loss)
-    plt.show()
-    return beta
-
-
 #### Rajkumar and Arun objective perturbation ####
 def centralized_objective_pert(X, y, lambda2, T, m, epsilon):
     n, d = X.shape[0], X.shape[1]
@@ -233,6 +201,42 @@ def centralized_objective_pert(X, y, lambda2, T, m, epsilon):
     plt.plot(loss)
     plt.show()
     return beta
+
+
+#### Proposed Method 1: Output Perturbation ####
+def proposed_output_pert(X, y, lambda2, T, m, epsilon):
+    n, d = X.shape[0], X.shape[1]
+    local_betas = np.zeros((m, d))
+    acc, loss = [], []
+    
+    for t in range(T):
+        for j in range(m):
+            local_betas[j] -= eta * gradient(local_betas[j], X[j * chunk : (j + 1) * chunk], y[j * chunk : (j + 1) * chunk], lambda2)
+        #beta = np.sum(local_betas, axis=0) / m + np.random.laplace(0, 2. / (m * chunk * lambda2 * epsilon), d)
+        beta = secure_aggregate_laplace(local_betas, 2. / (m * chunk * lambda2 * epsilon), useMPC=False)
+        loss.append(optimality_gap(beta, X, y, lambda2, T, m, epsilon))
+        #acc.append(testModel(xtest, ytest, beta))
+    plt.plot(loss)
+    plt.show()
+    return beta
+        
+
+#### Proposed Method 2: Gradient Perturbation ####
+def proposed_gradient_pert(X, y, lambda2, T, m, epsilon):
+    n, d = X.shape[0], X.shape[1]
+    beta = np.zeros(d)
+    acc, loss = [], []
+    
+    for t in range(T):
+        grads = [gradient(beta, X[j * chunk : (j + 1) * chunk], y[j * chunk : (j + 1) * chunk], lambda2) for j in range(m)]
+        grad = secure_aggregate_gaussian(np.array(grads), np.sqrt(2. * T) / (m * chunk * (np.sqrt(np.log(1. / delta) + epsilon) - np.sqrt(np.log(1. / delta)))), useMPC=False)
+        beta -= eta * grad
+        loss.append(optimality_gap(beta, X, y, lambda2, T, m, epsilon))
+        #acc.append(testModel(xtest, ytest, beta))
+    plt.plot(loss)
+    plt.show()
+    return beta
+
 
 ####################
 
@@ -299,24 +303,6 @@ def trainAggregateModel(xtrain, ytrain, xtest, ytest, modelName, m):
         print("Relative Error is : " + str(np.mean(acc)))
         print("Optimality Gap is : " + str(np.mean(gap)))
 
-        '''
-        fp1 = open('Inputs/beta1.txt', 'a')
-        fp2 = open('Inputs/beta2.txt', 'a')
-        fp3 = open('Inputs/random_vals.txt', 'a')
-        '''
-        '''
-                    beta1 = np.array([int(SCALE*val) for val in a])
-                    beta2 = np.random.randint(-SCALE, SCALE, d)
-                    beta1 ^= beta2
-                    fp1.write(str(beta1))
-                    fp2.write(str(beta2))
-                    fp3.write(str(np.random.randint(-SCALE, SCALE, d)))
-        '''
-        '''
-        fp1.close()
-        fp2.close()
-        fp3.close()
-        '''
             
 ####################
 
