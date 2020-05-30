@@ -1,7 +1,6 @@
 import time
 import pickle
 import numpy as np
-from model import model
 from sklearn import metrics
 from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import KFold
