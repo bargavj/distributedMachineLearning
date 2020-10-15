@@ -2,8 +2,7 @@ import time
 import pickle
 import numpy as np
 from sklearn import metrics
-from sklearn.model_selection import cross_val_score, KFold
-from sklearn.model_selection import 
+from sklearn.model_selection import KFold
 from sklearn.utils import shuffle
 from utility import secure_aggregate_laplace, secure_aggregate_gaussian
 import matplotlib.pyplot as plt
@@ -180,6 +179,7 @@ def local_gradient_pert(X, y, lambda2, T, m, epsilon):
 def centralized_objective_pert(X, y, lambda2, T, m, epsilon):
     n, d = X.shape[0], X.shape[1]
     local_betas = np.zeros((m, d))
+    beta=np.zeros(d)
     acc, loss = [], []
     
     epsilon2 = epsilon - 2 * np.log(1. / (4 * chunk * lambda2))
