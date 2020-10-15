@@ -179,7 +179,7 @@ def local_gradient_pert(X, y, lambda2, T, m, epsilon):
 def centralized_objective_pert(X, y, lambda2, T, m, epsilon):
     n, d = X.shape[0], X.shape[1]
     local_betas = np.zeros((m, d))
-    beta=np.zeros(d)
+    beta = np.zeros(d)
     acc, loss = [], []
     
     epsilon2 = epsilon - 2 * np.log(1. / (4 * chunk * lambda2))
